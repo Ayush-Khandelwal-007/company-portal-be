@@ -16,6 +16,15 @@ async function getUsers({
   // Sanitize the filter to prevent SQL injection
   const sanitizedFilter = `%${filter.replace(/'/g, "\\'")}%`;
 
+    // Query to count the total number of users
+    const countQuery = `
+    SELECT COUNT(DISTINCT u.userId) AS totalUsers
+    FROM MercorUsers u
+    LEFT JOIN MercorUserSkills us ON u.userId = us.userId
+    LEFT JOIN Skills s ON us.skillId = s.skillId
+    WHERE s.skillName LIKE '${sanitizedFilter}'
+  `;
+
   // Construct the SQL query to fetch users
   let query = `
     SELECT 
@@ -33,12 +42,6 @@ async function getUsers({
     LEFT JOIN Skills s ON us.skillId = s.skillId
     LEFT JOIN UserResume r ON u.userId = r.userId
     LEFT JOIN PersonalInformation p ON r.resumeId = p.resumeId
-  `;
-  
-  const queryParams = [];
-  
-  // Add GROUP BY, HAVING, ORDER BY, and LIMIT clauses to the query
-  query += `
     GROUP BY 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, 
       u.fullTimeSalaryCurrency, u.fullTimeSalary, u.partTimeSalaryCurrency, 
@@ -50,8 +53,12 @@ async function getUsers({
   `;
 
   try {
+    const countResult = await queryDatabase(countQuery);
+    const totalUsers = countResult[0].totalUsers;
+    const totalPages = Math.ceil(totalUsers / pageSize);
+
     const results = await queryDatabase(query);
-    return results;
+    return { results, totalPages };
   } catch (err) {
     console.error('Error performing query:', err);
     throw err;  

@@ -31,7 +31,7 @@ router.route('/users').get((request, response) => {
     pageSize,
   }).then((data) => {
     // Send the fetched user data as JSON
-    response.json({ Users: data });
+    response.json(data);
   }).catch((error) => {
     // Log and send error if fetching users fails
     console.error('Error fetching users:', error);
@@ -48,7 +48,7 @@ router.route('/user/:id').get((request, response) => {
   }).then((data) => {
     if (data.length > 0) {
       // Send the fetched user data if found
-      response.json(data);
+      response.json(data[0]);
     } else {
       // Send error if no user is found
       response.status(404).json({ error: 'User not found' });
