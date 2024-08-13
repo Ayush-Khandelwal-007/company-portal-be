@@ -30,7 +30,7 @@ async function getUsers({
     SELECT 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, u.fullTimeSalaryCurrency,
       u.fullTimeSalary, u.partTimeSalaryCurrency, u.partTimeSalary, u.createdAt, u.lastLogin, 
-      u.isGptEnabled, u.isActive, u.workAvailability,
+      u.isGptEnabled, u.isActive, u.workAvailability,u.summary,
       p.location,
       GROUP_CONCAT(s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
       (SELECT SUM(we.endDate - we.startDate) 
@@ -158,7 +158,7 @@ async function getUsersByIds(userIds) {
       SELECT 
           u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, u.fullTimeSalaryCurrency,
           u.fullTimeSalary, u.partTimeSalaryCurrency, u.partTimeSalary, u.createdAt, u.lastLogin, 
-          u.isGptEnabled, u.isActive, u.workAvailability,
+          u.isGptEnabled, u.isActive, u.workAvailability, u.summary,
           p.location,
           GROUP_CONCAT(s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
           (SELECT SUM(we.endDate - we.startDate) 
