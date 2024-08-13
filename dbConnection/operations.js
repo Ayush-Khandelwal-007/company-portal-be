@@ -1,19 +1,22 @@
-var  config = require('./dbConfig');
-const  mysql = require('mysql');
-let  connection =  mysql.createConnection(config);
+var config = require('./dbConfig');
+const mysql = require('mysql');
+let connection = mysql.createConnection(config);
 connection.connect();
 
+// Function to get a list of users with pagination, sorting, and filtering options
 async function getUsers({ 
-  sortBy = 'userId',  // Default sorting column
+  sortBy = 'userId',  
   sortOrder = 'ASC', 
   filter = '', 
   page = 1, 
   pageSize = 10 
 } = {}) {
+  // Calculate the offset for pagination
   const offset = (page - 1) * pageSize;
+  // Sanitize the filter to prevent SQL injection
   const sanitizedFilter = `%${filter.replace(/'/g, "\\'")}%`;
 
-  // Base query, joining with MercorUserSkills and Skills to fetch user skills
+  // Construct the SQL query to fetch users
   let query = `
     SELECT 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, u.fullTimeSalaryCurrency,
@@ -30,7 +33,7 @@ async function getUsers({
   
   const queryParams = [];
   
-  // Add grouping, sorting, and pagination
+  // Add GROUP BY, HAVING, ORDER BY, and LIMIT clauses to the query
   query += `
     GROUP BY 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, 
@@ -42,18 +45,20 @@ async function getUsers({
     LIMIT ${pageSize} OFFSET ${offset}
   `;
 
-  // Query the database
   try {
+    // Execute the query and return the results
     const results = await queryDatabase(query, queryParams);
     return results;
   } catch (err) {
     console.error('Error performing query:', err);
-    throw err;  // Rethrow error for further handling if needed
+    throw err;  
   }
 }
 
+// Function to get a single user by userId
 async function getUser({ userId }) {
-  // Use a parameterized query to safely include the userId
+  
+  // Construct the SQL query to fetch a single user
   const query = mysql.format(`
     SELECT 
       u.userId, MAX(u.email) as email, MAX(u.name) as name, MAX(u.phone) as phone, MAX(u.residence) as residence, MAX(u.profilePic) as profilePic, 
@@ -77,18 +82,18 @@ async function getUser({ userId }) {
     WHERE u.userId = ?
     GROUP BY u.userId
   `, [userId]);
-
-  // Query the database
+  
   try {
+    // Execute the query and return the results
     const results = await queryDatabase(query);
     return results;
   } catch (err) {
     console.error('Error performing query:', err);
-    throw err;  // Rethrow the error to handle it upstream if needed
+    throw err;  
   }
 }
-  
-  // Promisify the query method
+
+// Function to execute a query on the database
 function queryDatabase(query) {
   return new Promise((resolve, reject) => {
     console.debug('New Query started:', query);
@@ -102,7 +107,7 @@ function queryDatabase(query) {
   });
 }
   
-  module.exports = {
-    getUsers:  getUsers,
-    getUser:  getUser
-  }
+module.exports = {
+  getUsers: getUsers,
+  getUser: getUser
+}
