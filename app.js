@@ -26,12 +26,12 @@ app.use((err, req, res, next) => {
 
 // Route to get multiple users with optional filters, sorting, and pagination
 router.route('/users').get((request, response) => {
-  const { pageSize, page, filter, sortBy, sortOrder } = request.query;
+  const { pageSize, page, filters, sortBy, sortOrder } = request.query;
   // Fetch users with specified query parameters
   Db.getUsers({
     sortBy,
     sortOrder,
-    filter,
+    filters : ["python"],
     page,
     pageSize,
   }).then((data) => {

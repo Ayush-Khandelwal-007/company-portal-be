@@ -5,29 +5,34 @@ const validSortColumns = ['userId', 'email', 'name']; // Add more valid columns 
 const validSortOrders = ['ASC', 'DESC'];
 
 // Function to get a list of users with pagination, sorting, and filtering options
-const getUsers =async ({ 
+const getUsers = async ({ 
   sortBy = 'userId',  
   sortOrder = 'ASC', 
-  filter = '', 
+  filters = [], // Changed to an array of strings
   page = 1, 
   pageSize = 10 
 } = {}) => {
   // Calculate the offset for pagination
   const offset = (page - 1) * pageSize;
-  // Sanitize the filter to prevent SQL injection
-  const sanitizedFilter = `%${filter.replace(/'/g, "\\'")}%`;
+  // Sanitize each filter string to prevent SQL injection and join them for SQL LIKE clause
+  const sanitizedFilters = filters.map(f => `%${f.replace(/'/g, "\\'")}%`);
+  const filterCondition = sanitizedFilters.map(f => `s2.skillName LIKE '${f}'`).join(' OR ');
 
   if (!validSortColumns.includes(sortBy) || !validSortOrders.includes(sortOrder)) {
     throw new Error('Invalid sort parameter');
   }
 
-    // Query to count the total number of users
-    const countQuery = `
+  // Query to count the total number of users
+  const countQuery = `
     SELECT COUNT(DISTINCT u.userId) AS totalUsers
     FROM MercorUsers u
     LEFT JOIN MercorUserSkills us ON u.userId = us.userId
     LEFT JOIN Skills s ON us.skillId = s.skillId
-    WHERE s.skillName LIKE '${sanitizedFilter}'
+    WHERE EXISTS (
+      SELECT 1 FROM MercorUserSkills us2
+      JOIN Skills s2 ON us2.skillId = s2.skillId
+      WHERE us2.userId = u.userId AND (${filterCondition})
+    )
   `;
 
   // Construct the SQL query to fetch users
@@ -38,7 +43,7 @@ const getUsers =async ({
       u.isGptEnabled, u.isActive, u.workAvailability, u.summary,
       u.preferredRole, u.fullTime, u.partTime,
       p.location,
-      GROUP_CONCAT(s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
+      GROUP_CONCAT(DISTINCT s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
       (SELECT SUM(we.endDate - we.startDate) 
        FROM WorkExperience we 
        JOIN UserResume ur ON we.resumeId = ur.resumeId
@@ -48,12 +53,16 @@ const getUsers =async ({
     LEFT JOIN Skills s ON us.skillId = s.skillId
     LEFT JOIN UserResume r ON u.userId = r.userId
     LEFT JOIN PersonalInformation p ON r.resumeId = p.resumeId
+    WHERE EXISTS (
+      SELECT 1 FROM MercorUserSkills us2
+      JOIN Skills s2 ON us2.skillId = s2.skillId
+      WHERE us2.userId = u.userId AND (${filterCondition})
+    )
     GROUP BY 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, 
       u.fullTimeSalaryCurrency, u.fullTimeSalary, u.partTimeSalaryCurrency, 
       u.partTimeSalary, u.createdAt, u.lastLogin, u.isGptEnabled, 
       u.isActive, u.workAvailability, p.location
-    HAVING skills LIKE '${sanitizedFilter}'
     ORDER BY ${sortBy} ${sortOrder} 
     LIMIT ${pageSize} OFFSET ${offset}
   `;
@@ -123,7 +132,7 @@ const compareUsers = async (userIds) => {
            FROM WorkExperience we 
            JOIN UserResume ur ON we.resumeId = ur.resumeId
            WHERE ur.userId = u.userId) AS totalExperience,
-          (SELECT GROUP_CONCAT(s.skillName ORDER BY s.skillName ASC) 
+          (SELECT GROUP_CONCAT(DISTINCT s.skillName ORDER BY s.skillName ASC) 
            FROM MercorUserSkills us 
            JOIN Skills s ON us.skillId = s.skillId 
            WHERE us.userId = u.userId) AS skills
@@ -168,7 +177,7 @@ const getUsersByIds = async (userIds) => {
           u.fullTimeSalary, u.partTimeSalaryCurrency, u.partTimeSalary, u.createdAt, u.lastLogin, 
           u.isGptEnabled, u.isActive, u.workAvailability, u.summary,
           p.location,
-          GROUP_CONCAT(s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
+          GROUP_CONCAT(DISTINCT s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
           (SELECT SUM(we.endDate - we.startDate) 
            FROM WorkExperience we 
            JOIN UserResume ur ON we.resumeId = ur.resumeId
