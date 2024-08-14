@@ -31,7 +31,7 @@ router.route('/users').get((request, response) => {
   Db.getUsers({
     sortBy,
     sortOrder,
-    filters : ["python"],
+    filters : filters.split(','),
     page,
     pageSize,
   }).then((data) => {
