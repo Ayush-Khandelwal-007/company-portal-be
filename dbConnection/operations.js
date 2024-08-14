@@ -35,7 +35,8 @@ const getUsers =async ({
     SELECT 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, u.fullTimeSalaryCurrency,
       u.fullTimeSalary, u.partTimeSalaryCurrency, u.partTimeSalary, u.createdAt, u.lastLogin, 
-      u.isGptEnabled, u.isActive, u.workAvailability,u.summary,
+      u.isGptEnabled, u.isActive, u.workAvailability, u.summary,
+      u.preferredRole, u.fullTimeStatus
       p.location,
       GROUP_CONCAT(s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
       (SELECT SUM(we.endDate - we.startDate) 
