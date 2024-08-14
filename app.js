@@ -51,13 +51,7 @@ router.route('/user/:id').get((request, response) => {
   Db.getUser({
     userId: userId
   }).then((data) => {
-    if (data.length > 0) {
-      // Send the fetched user data if found
-      response.json(data[0]);
-    } else {
-      // Send error if no user is found
-      response.status(404).json({ error: 'User not found' });
-    }
+    response.json(data);
   }).catch((error) => {
     // Log and send error if fetching user fails
     console.error('Error fetching user:', error);

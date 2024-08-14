@@ -84,7 +84,7 @@ const getUsers = async ({
 const getUser = async ({ userId }) => {
   const query = mysql.format(`
       SELECT 
-        u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, 
+        u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, u.fullTime, u.partTime,
         u.createdAt, u.lastLogin, u.isGptEnabled, u.isActive, u.isComplete,
         u.preferredRole, u.fullTimeStatus, u.workAvailability, u.fullTimeSalaryCurrency, 
         u.fullTimeSalary, u.partTimeSalaryCurrency, u.partTimeSalary, u.summary, u.preVettedAt,
@@ -93,8 +93,8 @@ const getUser = async ({ userId }) => {
         r.updatedAt AS resumeUpdatedAt, r.source AS resumeSource,
         p.name AS personalInfoName, p.location AS personalInfoLocation, p.email AS personalInfoEmail,
         p.phone AS personalInfoPhone,
-        GROUP_CONCAT(DISTINCT CONCAT(we.company, ' : ', we.startDate, ' - ', we.endDate) ORDER BY we.startDate ASC SEPARATOR ', ') AS workExperienceDetails,
-        GROUP_CONCAT(DISTINCT CONCAT(e.school, ' : ', e.startDate, ' - ', e.endDate) ORDER BY e.startDate ASC SEPARATOR ', ') AS educationDetails
+        GROUP_CONCAT(DISTINCT CONCAT(e.school, ' : ', e.startDate, ' - ', e.endDate,' : ', e.degree) ORDER BY e.startDate ASC SEPARATOR '= ') AS educationDetails,
+        we.company, we.startDate, we.endDate, we.description, we.locationCity, we.locationCountry, we.role
       FROM MercorUsers u
       LEFT JOIN MercorUserSkills us ON u.userId = us.userId
       LEFT JOIN Skills s ON us.skillId = s.skillId
@@ -108,12 +108,23 @@ const getUser = async ({ userId }) => {
                 u.preferredRole, u.fullTimeStatus, u.workAvailability, u.fullTimeSalaryCurrency, 
                 u.fullTimeSalary, u.partTimeSalaryCurrency, u.partTimeSalary, u.summary, u.preVettedAt,
                 r.resumeId, r.url, r.filename, r.createdAt, r.updatedAt, r.source,
-                p.name, p.location, p.email, p.phone
+                p.name, p.location, p.email, p.phone,
+                we.workExperienceId
   `, [userId]);
 
   try {
       const results = await dbUtil.queryDatabase(query);
-      return results;
+      const user = results[0];
+      const workExperiences = results.map(we => ({
+          company: we.company,
+          startDate: we.startDate,
+          endDate: we.endDate,
+          description: we.description,
+          locationCity: we.locationCity,
+          locationCountry: we.locationCountry,
+          role: we.role
+      }));
+      return { ...user, workExperiences };
   } catch (err) {
       console.error('Error performing query:', err);
       throw err;
@@ -125,7 +136,7 @@ const compareUsers = async (userIds) => {
   // SQL query to fetch user details and calculate total experience and skills
   const query = mysql.format(`
       SELECT 
-          u.userId, u.name, u.email, u.phone, 
+          u.userId, u.name, u.email, u.phone, u.profilePic,
           u.fullTimeSalary, u.fullTimeSalaryCurrency,
           u.partTimeSalary, u.partTimeSalaryCurrency,
           (SELECT SUM(we.endDate - we.startDate) 
@@ -146,8 +157,10 @@ const compareUsers = async (userIds) => {
       if (results.length === 2) {
           // Construct a differences object to highlight differences between the two users
           const differences = {
+              userId:  { user1: results[0].userId, user2: results[1].userId },
               name:  { user1: results[0].name, user2: results[1].name },
               email:  { user1: results[0].email, user2: results[1].email },
+              profilePic:  { user1: results[0].profilePic, user2: results[1].profilePic },
               phone:  { user1: results[0].phone, user2: results[1].phone },
               fullTimeSalary:  { user1: results[0].fullTimeSalary, user2: results[1].fullTimeSalary },
               fullTimeSalaryCurrency:  { user1: results[0].fullTimeSalaryCurrency, user2: results[1].fullTimeSalaryCurrency },
