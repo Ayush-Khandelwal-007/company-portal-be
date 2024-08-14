@@ -16,26 +16,26 @@ const getUsers = async ({
   const offset = (page - 1) * pageSize;
   // Sanitize each filter string to prevent SQL injection and join them for SQL LIKE clause
   const sanitizedFilters = filters.map(f => `%${f.replace(/'/g, "\\'")}%`);
-  const filterCondition = sanitizedFilters.map(f => `s2.skillName LIKE '${f}'`).join(' OR ');
+  const filterCondition = sanitizedFilters.map(f => `s2.skillName LIKE '${f}'`).join(' AND ');
 
   if (!validSortColumns.includes(sortBy) || !validSortOrders.includes(sortOrder)) {
     throw new Error('Invalid sort parameter');
   }
 
-  // Query to count the total number of users
+  // Adjusted count query to ensure all filters are matched
   const countQuery = `
     SELECT COUNT(DISTINCT u.userId) AS totalUsers
     FROM MercorUsers u
-    LEFT JOIN MercorUserSkills us ON u.userId = us.userId
-    LEFT JOIN Skills s ON us.skillId = s.skillId
-    WHERE EXISTS (
+    JOIN MercorUserSkills us ON u.userId = us.userId
+    JOIN Skills s ON us.skillId = s.skillId
+    WHERE ${sanitizedFilters.map(f => `EXISTS (
       SELECT 1 FROM MercorUserSkills us2
       JOIN Skills s2 ON us2.skillId = s2.skillId
-      WHERE us2.userId = u.userId AND (${filterCondition})
-    )
+      WHERE us2.userId = u.userId AND s2.skillName LIKE '${f}'
+    )`).join(' AND ')}
   `;
 
-  // Construct the SQL query to fetch users
+  // Adjusted main query to ensure all filters are matched
   let query = `
     SELECT 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, u.fullTimeSalaryCurrency,
@@ -49,15 +49,15 @@ const getUsers = async ({
        JOIN UserResume ur ON we.resumeId = ur.resumeId
        WHERE ur.userId = u.userId) AS totalExperience
     FROM MercorUsers u
-    LEFT JOIN MercorUserSkills us ON u.userId = us.userId
-    LEFT JOIN Skills s ON us.skillId = s.skillId
-    LEFT JOIN UserResume r ON u.userId = r.userId
-    LEFT JOIN PersonalInformation p ON r.resumeId = p.resumeId
-    WHERE EXISTS (
+    JOIN MercorUserSkills us ON u.userId = us.userId
+    JOIN Skills s ON us.skillId = s.skillId
+    JOIN UserResume r ON u.userId = r.userId
+    JOIN PersonalInformation p ON r.resumeId = p.resumeId
+    WHERE ${sanitizedFilters.map(f => `EXISTS (
       SELECT 1 FROM MercorUserSkills us2
       JOIN Skills s2 ON us2.skillId = s2.skillId
-      WHERE us2.userId = u.userId AND (${filterCondition})
-    )
+      WHERE us2.userId = u.userId AND s2.skillName LIKE '${f}'
+    )`).join(' AND ')}
     GROUP BY 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, 
       u.fullTimeSalaryCurrency, u.fullTimeSalary, u.partTimeSalaryCurrency, 
