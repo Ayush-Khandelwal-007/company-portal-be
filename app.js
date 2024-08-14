@@ -19,6 +19,11 @@ router.use((request, response, next) => {
   next();
 });
 
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 // Route to get multiple users with optional filters, sorting, and pagination
 router.route('/users').get((request, response) => {
   const { pageSize, page, filter, sortBy, sortOrder } = request.query;

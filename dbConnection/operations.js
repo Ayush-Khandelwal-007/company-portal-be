@@ -1,20 +1,25 @@
-var config = require('./dbConfig');
 const mysql = require('mysql');
-let connection = mysql.createConnection(config);
-connection.connect();
+const dbUtil = require('./dbUtil');
+
+const validSortColumns = ['userId', 'email', 'name']; // Add more valid columns as needed
+const validSortOrders = ['ASC', 'DESC'];
 
 // Function to get a list of users with pagination, sorting, and filtering options
-async function getUsers({ 
+const getUsers =async ({ 
   sortBy = 'userId',  
   sortOrder = 'ASC', 
   filter = '', 
   page = 1, 
   pageSize = 10 
-} = {}) {
+} = {}) => {
   // Calculate the offset for pagination
   const offset = (page - 1) * pageSize;
   // Sanitize the filter to prevent SQL injection
   const sanitizedFilter = `%${filter.replace(/'/g, "\\'")}%`;
+
+  if (!validSortColumns.includes(sortBy) || !validSortOrders.includes(sortOrder)) {
+    throw new Error('Invalid sort parameter');
+  }
 
     // Query to count the total number of users
     const countQuery = `
@@ -53,11 +58,11 @@ async function getUsers({
   `;
 
   try {
-    const countResult = await queryDatabase(countQuery);
+    const countResult = await dbUtil.queryDatabase(countQuery);
     const totalUsers = countResult[0].totalUsers;
     const totalPages = Math.ceil(totalUsers / pageSize);
 
-    const results = await queryDatabase(query);
+    const results = await dbUtil.queryDatabase(query);
     return { results, totalPages };
   } catch (err) {
     console.error('Error performing query:', err);
@@ -66,45 +71,47 @@ async function getUsers({
 }
 
 // Function to get a single user by userId
-async function getUser({ userId }) {
-  
-  // Construct the SQL query to fetch a single user
+const getUser = async ({ userId }) => {
   const query = mysql.format(`
-    SELECT 
-      u.userId, MAX(u.email) as email, MAX(u.name) as name, MAX(u.phone) as phone, MAX(u.residence) as residence, MAX(u.profilePic) as profilePic, 
-      MAX(u.createdAt) as createdAt, MAX(u.lastLogin) as lastLogin, MAX(u.isGptEnabled) as isGptEnabled, MAX(u.isActive) as isActive, MAX(u.isComplete) as isComplete,
-      MAX(u.preferredRole) as preferredRole, MAX(u.fullTimeStatus) as fullTimeStatus, MAX(u.workAvailability) as workAvailability, MAX(u.fullTimeSalaryCurrency) as fullTimeSalaryCurrency, MAX(u.fullTimeSalary) as fullTimeSalary, MAX(u.partTimeSalaryCurrency) as partTimeSalaryCurrency,
-      MAX(u.partTimeSalary) as partTimeSalary, MAX(u.summary) as summary, MAX(u.preVettedAt) as preVettedAt,
-      GROUP_CONCAT(DISTINCT s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
-      MAX(r.resumeId) as resumeId, MAX(r.url) as resumeUrl, MAX(r.filename) as resumeFilename, MAX(r.createdAt) as resumeCreatedAt,
-      MAX(r.updatedAt) as resumeUpdatedAt, MAX(r.source) as resumeSource, MAX(r.isInvitedToInterview) as isInvitedToInterview,
-      MAX(p.name) as personalInfoName, MAX(p.location) as personalInfoLocation, MAX(p.email) as personalInfoEmail,
-      MAX(p.phone) as personalInfoPhone,
-      GROUP_CONCAT(DISTINCT CONCAT(we.company, ' : ', we.startDate, ' - ', we.endDate) ORDER BY we.startDate ASC SEPARATOR ', ') AS workExperienceDetails,
-      GROUP_CONCAT(DISTINCT CONCAT(e.school, ' : ', e.startDate, ' - ', e.endDate) ORDER BY e.startDate ASC SEPARATOR ', ') AS educationDetails
-    FROM MercorUsers u
-    LEFT JOIN MercorUserSkills us ON u.userId = us.userId
-    LEFT JOIN Skills s ON us.skillId = s.skillId
-    LEFT JOIN UserResume r ON u.userId = r.userId
-    LEFT JOIN PersonalInformation p ON r.resumeId = p.resumeId
-    LEFT JOIN WorkExperience we ON r.resumeId = we.resumeId
-    LEFT JOIN Education e ON r.resumeId = e.resumeId
-    WHERE u.userId = ?
-    GROUP BY u.userId
+      SELECT 
+        u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, 
+        u.createdAt, u.lastLogin, u.isGptEnabled, u.isActive, u.isComplete,
+        u.preferredRole, u.fullTimeStatus, u.workAvailability, u.fullTimeSalaryCurrency, 
+        u.fullTimeSalary, u.partTimeSalaryCurrency, u.partTimeSalary, u.summary, u.preVettedAt,
+        GROUP_CONCAT(DISTINCT s.skillName ORDER BY us.order ASC SEPARATOR ', ') AS skills,
+        r.resumeId, r.url AS resumeUrl, r.filename AS resumeFilename, r.createdAt AS resumeCreatedAt,
+        r.updatedAt AS resumeUpdatedAt, r.source AS resumeSource,
+        p.name AS personalInfoName, p.location AS personalInfoLocation, p.email AS personalInfoEmail,
+        p.phone AS personalInfoPhone,
+        GROUP_CONCAT(DISTINCT CONCAT(we.company, ' : ', we.startDate, ' - ', we.endDate) ORDER BY we.startDate ASC SEPARATOR ', ') AS workExperienceDetails,
+        GROUP_CONCAT(DISTINCT CONCAT(e.school, ' : ', e.startDate, ' - ', e.endDate) ORDER BY e.startDate ASC SEPARATOR ', ') AS educationDetails
+      FROM MercorUsers u
+      LEFT JOIN MercorUserSkills us ON u.userId = us.userId
+      LEFT JOIN Skills s ON us.skillId = s.skillId
+      LEFT JOIN UserResume r ON u.userId = r.userId
+      LEFT JOIN PersonalInformation p ON r.resumeId = p.resumeId
+      LEFT JOIN WorkExperience we ON r.resumeId = we.resumeId
+      LEFT JOIN Education e ON r.resumeId = e.resumeId
+      WHERE u.userId = ?
+      GROUP BY u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, 
+                u.createdAt, u.lastLogin, u.isGptEnabled, u.isActive, u.isComplete,
+                u.preferredRole, u.fullTimeStatus, u.workAvailability, u.fullTimeSalaryCurrency, 
+                u.fullTimeSalary, u.partTimeSalaryCurrency, u.partTimeSalary, u.summary, u.preVettedAt,
+                r.resumeId, r.url, r.filename, r.createdAt, r.updatedAt, r.source,
+                p.name, p.location, p.email, p.phone
   `, [userId]);
-  
+
   try {
-    // Execute the query and return the results
-    const results = await queryDatabase(query);
-    return results;
+      const results = await dbUtil.queryDatabase(query);
+      return results;
   } catch (err) {
-    console.error('Error performing query:', err);
-    throw err;  
+      console.error('Error performing query:', err);
+      throw err;
   }
-}
+};
 
 // Function to compare two users based on their user IDs
-async function compareUsers(userIds) {
+const compareUsers = async (userIds) => {
   // SQL query to fetch user details and calculate total experience and skills
   const query = mysql.format(`
       SELECT 
@@ -125,7 +132,7 @@ async function compareUsers(userIds) {
 
   try {
       // Execute the query and process the results
-      const results = await queryDatabase(query);
+      const results = await dbUtil.queryDatabase(query);
       if (results.length === 2) {
           // Construct a differences object to highlight differences between the two users
           const differences = {
@@ -152,7 +159,7 @@ async function compareUsers(userIds) {
 }
 
 // Function to fetch multiple users by their user IDs
-async function getUsersByIds(userIds) {
+const getUsersByIds = async (userIds) => {
   // SQL query to fetch user details, skills, and total experience
   const query = mysql.format(`
       SELECT 
@@ -180,27 +187,13 @@ async function getUsersByIds(userIds) {
 
   try {
       // Execute the query and return the results
-      const results = await queryDatabase(query);
+      const results = await dbUtil.queryDatabase(query);
       return results;
   } catch (err) {
       // Log and rethrow the error if the query fails
       console.error('Error performing query:', err);
       throw err;
   }
-}
-
-// Function to execute a query on the database
-function queryDatabase(query) {
-  return new Promise((resolve, reject) => {
-    console.debug('New Query started:', query);
-      connection.query(query, (err, results) => {
-          if (err) {
-              return reject(err);
-          }
-          console.debug('Query Results:', results);
-          resolve(results);
-      });
-  });
 }
   
 module.exports = {
