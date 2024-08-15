@@ -16,23 +16,27 @@ const getUsers = async ({
   const offset = (page - 1) * pageSize;
   // Sanitize each filter string to prevent SQL injection and join them for SQL LIKE clause
   const sanitizedFilters = filters.map(f => `%${f.replace(/'/g, "\\'")}%`);
-  const filterCondition = sanitizedFilters.map(f => `s2.skillName LIKE '${f}'`).join(' AND ');
 
   if (!validSortColumns.includes(sortBy) || !validSortOrders.includes(sortOrder)) {
     throw new Error('Invalid sort parameter');
   }
 
   // Adjusted count query to ensure all filters are matched
+  let whereClause = '';
+  if (sanitizedFilters.length > 0) {
+    whereClause = 'WHERE ' + sanitizedFilters.map(f => `EXISTS (
+      SELECT 1 FROM MercorUserSkills us2
+      JOIN Skills s2 ON us2.skillId = s2.skillId
+      WHERE us2.userId = u.userId AND s2.skillName LIKE '${f}'
+    )`).join(' AND ');
+  }
+
   const countQuery = `
     SELECT COUNT(DISTINCT u.userId) AS totalUsers
     FROM MercorUsers u
     JOIN MercorUserSkills us ON u.userId = us.userId
     JOIN Skills s ON us.skillId = s.skillId
-    WHERE ${sanitizedFilters.map(f => `EXISTS (
-      SELECT 1 FROM MercorUserSkills us2
-      JOIN Skills s2 ON us2.skillId = s2.skillId
-      WHERE us2.userId = u.userId AND s2.skillName LIKE '${f}'
-    )`).join(' AND ')}
+    ${whereClause}
   `;
 
   // Adjusted main query to ensure all filters are matched
@@ -53,11 +57,7 @@ const getUsers = async ({
     JOIN Skills s ON us.skillId = s.skillId
     JOIN UserResume r ON u.userId = r.userId
     JOIN PersonalInformation p ON r.resumeId = p.resumeId
-    WHERE ${sanitizedFilters.map(f => `EXISTS (
-      SELECT 1 FROM MercorUserSkills us2
-      JOIN Skills s2 ON us2.skillId = s2.skillId
-      WHERE us2.userId = u.userId AND s2.skillName LIKE '${f}'
-    )`).join(' AND ')}
+    ${whereClause}
     GROUP BY 
       u.userId, u.email, u.name, u.phone, u.residence, u.profilePic, 
       u.fullTimeSalaryCurrency, u.fullTimeSalary, u.partTimeSalaryCurrency, 

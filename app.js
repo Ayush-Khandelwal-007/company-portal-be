@@ -31,7 +31,7 @@ router.route('/users').get((request, response) => {
   Db.getUsers({
     sortBy,
     sortOrder,
-    filters : filters.split(','),
+    filters : filters?.split(','),
     page,
     pageSize,
   }).then((data) => {
